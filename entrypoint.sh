@@ -1,6 +1,16 @@
 #!/bin/bash
 set -e
 
+# Phase 0: If running as root (docker-compose override), clean up and drop to agent
+if [ "$(id -u)" = "0" ]; then
+  echo "=== DLL Synthesis Entrypoint (init) ==="
+  echo "[INIT] Running as root — cleaning workspace..."
+  rm -f /workspace/test2/*.jsonl 2>/dev/null || true
+  chown -R agent:agent /workspace 2>/dev/null || true
+  echo "[INIT] Dropping privileges to agent..."
+  exec su -s /bin/bash -p agent -c "HOME=/home/agent exec /entrypoint.sh"
+fi
+
 echo "=== DLL Synthesis Entrypoint ==="
 
 # Phase 1: Wait for Redis
@@ -23,7 +33,7 @@ populate_queue \
   --api-model-name "$MODEL" \
   --seed 42 \
   --project test2 \
-  --prompt-file /workspace/test2/prompt.md \
+  --prompt-file /home/agent/workspace/test2/prompt.md \
   --iterations 1 \
   --redis-url redis://redis:6379
 
@@ -33,7 +43,7 @@ echo "Queue controller handles: settings injection, MCP config, Claude invocatio
 echo "synthesis monitoring, cleanup, and telemetry persistence."
 queue_controller \
   --models-path /tmp \
-  --project-root /workspace \
+  --project-root /home/agent/workspace \
   --redis-url redis://redis:6379 \
   --api-key "$ANTHROPIC_AUTH_TOKEN"
 

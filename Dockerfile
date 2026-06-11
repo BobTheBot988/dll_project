@@ -1,15 +1,17 @@
 # Stage 1: Build Rust projects (hooks, git_diff_checker, mcp-synthesizer)
-FROM rust:alpine3.21 AS rust-builder
+FROM rust:slim-trixie AS rust-builder
 
-RUN apk add --no-cache \
-  alpine-sdk \
-  pkgconfig \
-  openssl-dev \
-  openssl-libs-static \
-  musl-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  pkg-config \
+  libssl-dev \
+  libclang-dev \
   git \
+  make \
+  cmake \ 
+  g++ \
   curl \
-  perl
+  perl \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
@@ -66,31 +68,49 @@ COPY --from=rust-builder /build/mcp-synthesizer/target/release/queue_controller 
 COPY --from=rust-builder /build/mcp-synthesizer/target/release/stats_export /usr/local/bin/stats_export
 COPY --from=rust-builder /build/mcp-synthesizer/target/release/migrate /usr/local/bin/migrate
 
-# Install uv package manager and Halmos via uv tool
-RUN curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv.sh &&  sh /tmp/uv.sh && \
+# Create agent user and add to all groups
+RUN useradd -m -s /bin/bash agent && \
+  for g in $(getent group | cut -d: -f1); do \
+  usermod -aG "$g" agent 2>/dev/null || true; \
+  done
+
+# Agent creates own workspace directory (ensures ownership)
+USER agent
+RUN mkdir -p /home/agent/workspace/test2
+
+COPY test2/ /home/agent/workspace/test2
+
+# Install uv package manager and Halmos via uv tool (as agent)
+USER agent
+WORKDIR /home/agent
+RUN curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv.sh && \
+  sh /tmp/uv.sh && \
   . $HOME/.local/bin/env && \
-  uv tool install --python 3.12 halmos==0.3.3 && rm /tmp/uv.sh
+  uv tool install --python 3.12 halmos==0.3.3 && \
+  rm /tmp/uv.sh
 
-# Ensure uv-installed tools are on PATH
-ENV PATH="/root/.local/bin:$PATH"
-
-# Install Claude CLI
+# Install Claude CLI (as agent)
 RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh && \
-  sh /tmp/claude-install.sh && \
+  bash /tmp/claude-install.sh && \
   rm /tmp/claude-install.sh
 
-# Ensure Claude CLI is on PATH
-ENV PATH="/root/.claude/bin:$PATH"
+# Set PATH for agent
+ENV PATH="/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
 # Verify installations
 RUN forge --version && \
   halmos --help && \
   claude --version 2>/dev/null || true
 
-WORKDIR /workspace
+# Switch back to root for system-level operations
+USER root
 
 # Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown agent: --recursive /home/agent/workspace 
 
+# Switch to agent as default user
+USER agent
+RUN chmod u+wrx --recursive /home/agent/workspace 
 ENTRYPOINT ["/entrypoint.sh"]
+# ENTRYPOINT ["/bin/bash"]

@@ -17,6 +17,7 @@ docker-compose.yml
 ```
 
 **Synthesis flow:**
+
 1. `populate_queue` enqueues 1 API-mode synthesis job for `test2` into Redis
 2. `queue_controller` picks up the job, injects `mcpServers` config pointing to `mcp_synth`, spawns Claude Code with the prompt, monitors completion, verifies results, cleans up, and persists telemetry to Redis
 
@@ -27,11 +28,11 @@ docker-compose.yml
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ANTHROPIC_BASE_URL` | Yes | — | API endpoint URL (Anthropic-compatible) |
-| `ANTHROPIC_AUTH_TOKEN` | Yes | — | API authentication token |
-| `ANTHROPIC_MODEL` | No | `qwen3-solidity-27B-Q6_K.gguf` | Model name to use |
+| Variable               | Required | Default                        | Description                             |
+| ---------------------- | -------- | ------------------------------ | --------------------------------------- |
+| `ANTHROPIC_BASE_URL`   | Yes      | —                              | API endpoint URL (Anthropic-compatible) |
+| `ANTHROPIC_AUTH_TOKEN` | Yes      | —                              | API authentication token                |
+| `ANTHROPIC_MODEL`      | Yes      | `qwen3-solidity-27B-Q6_K.gguf` | Model name to use                       |
 
 Both Claude CLI and `mcp_synth` auto-discover these variables.
 
@@ -40,6 +41,7 @@ Both Claude CLI and `mcp_synth` auto-discover these variables.
 ```bash
 export ANTHROPIC_BASE_URL="https://api.example.com/anthropic"
 export ANTHROPIC_AUTH_TOKEN="sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+export ANTHROPIC_MODEL="deepseek-v4-flash"
 
 docker compose up
 ```
@@ -61,6 +63,7 @@ docker compose logs -f app
 docker compose run --rm \
   -e ANTHROPIC_BASE_URL="https://api.example.com/anthropic" \
   -e ANTHROPIC_AUTH_TOKEN="sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \
+  -e ANTHROPIC_MODEL="deepseek-v4-flash" \
   app
 ```
 
@@ -146,11 +149,11 @@ docker compose exec redis redis-cli KEYS '*'
 
 ## Troubleshooting
 
-| Problem | Likely cause | Fix |
-|---------|-------------|-----|
-| `ANTHROPIC_BASE_URL: error` | Env var not set | Export both `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` |
-| Redis connection refused | Redis not ready yet | Entrypoint retries automatically; check `docker compose logs redis` |
-| Build fails on Rust crates | Network or deps | Run `docker compose build --no-cache app` for clean rebuild |
-| `forge: not found` | Foundryup failed | Check `docker compose logs app` for foundryup output |
-| Port 6379 conflict on host | Local Redis running | Change ports in `docker-compose.yml` (e.g., `"6380:6379"`) |
-| Synthesis hangs | Model endpoint unreachable | Verify `ANTHROPIC_BASE_URL` is reachable from container |
+| Problem                     | Likely cause               | Fix                                                                 |
+| --------------------------- | -------------------------- | ------------------------------------------------------------------- |
+| `ANTHROPIC_BASE_URL: error` | Env var not set            | Export both `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`         |
+| Redis connection refused    | Redis not ready yet        | Entrypoint retries automatically; check `docker compose logs redis` |
+| Build fails on Rust crates  | Network or deps            | Run `docker compose build --no-cache app` for clean rebuild         |
+| `forge: not found`          | Foundryup failed           | Check `docker compose logs app` for foundryup output                |
+| Port 6379 conflict on host  | Local Redis running        | Change ports in `docker-compose.yml` (e.g., `"6380:6379"`)          |
+| Synthesis hangs             | Model endpoint unreachable | Verify `ANTHROPIC_BASE_URL` is reachable from container             |

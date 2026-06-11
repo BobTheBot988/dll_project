@@ -1,3 +1,10 @@
+networks:
+  synthesis-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.0.0/24
+
 services:
   redis:
     image: redis:7-alpine
@@ -6,8 +13,10 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - ./dump.rdb:/data/dump.rdb
-      - redis-data:/data
+      - ./data:/data
+    networks:
+      synthesis-net:
+        ipv4_address: 192.168.0.2
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -23,13 +32,16 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      synthesis-net:
+        ipv4_address: 192.168.0.3
     environment:
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:?error}
       - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:?error}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-qwen3-solidity-27B-Q6_K.gguf}
       - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./test2:/workspace/test2
+    # volumes:
+    #   - ./test2:/home/agent/workspace/test2
     stdin_open: true
     tty: true
 
