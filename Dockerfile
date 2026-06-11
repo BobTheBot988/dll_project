@@ -1,13 +1,15 @@
 # Stage 1: Build Rust projects (hooks, git_diff_checker, mcp-synthesizer)
-FROM rust:1.85-alpine3.21 AS rust-builder
+FROM rust:alpine3.21 AS rust-builder
 
 RUN apk add --no-cache \
-    alpine-sdk~=1 \
-    pkgconfig~=2 \
-    openssl-dev~=3 \
-    openssl-libs-static~=3 \
-    musl-dev~=1.2 \
-    git~=2
+  alpine-sdk \
+  pkgconfig \
+  openssl-dev \
+  openssl-libs-static \
+  musl-dev \
+  git \
+  curl \
+  perl
 
 WORKDIR /build
 
@@ -29,27 +31,29 @@ RUN cargo build --release --manifest-path /build/hooks/Cargo.toml
 RUN cargo build --release --manifest-path /build/mcp-synthesizer/Cargo.toml
 
 # Stage 2: Final runtime image
-FROM alpine:3.23.4
+FROM debian:trixie-slim
 
 # Install runtime dependencies
-RUN apk add --no-cache \
-    libstdc++~=14 \
-    git~=2 \
-    nodejs~=22 \
-    npm~=10 \
-    python3~=3.12 \
-    py3-pip~=24 \
-    curl~=8 \
-    bash~=5 \
-    redis~=7
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  git \
+  nodejs \
+  npm \
+  python3 \
+  python3-pip \
+  cmake \
+  make \
+  curl \
+  bash \
+  redis-server \
+  clang \
+  g++ \
+  && rm -rf /var/lib/apt/lists/*
 
-# Install Foundry via foundryup
-RUN curl -L https://foundry.paradigm.xyz | bash && \
-    foundryup && \
-    cp ~/.foundry/bin/forge /usr/local/bin/forge && \
-    cp ~/.foundry/bin/cast /usr/local/bin/cast && \
-    cp ~/.foundry/bin/anvil /usr/local/bin/anvil && \
-    cp ~/.foundry/bin/chisel /usr/local/bin/chisel
+# Install Foundry binaries
+RUN curl -L https://github.com/foundry-rs/foundry/releases/download/v1.7.1/foundry_v1.7.1_linux_amd64.tar.gz -o /tmp/foundry.tar.gz && \
+  tar -xzf /tmp/foundry.tar.gz -C /usr/local/bin/ && \
+  rm /tmp/foundry.tar.gz
 
 # Copy Rust binaries from stage 1
 COPY --from=rust-builder /build/git_diff_checker/target/release/git_diff_checker /usr/local/bin/git_diff_checker
@@ -62,25 +66,26 @@ COPY --from=rust-builder /build/mcp-synthesizer/target/release/queue_controller 
 COPY --from=rust-builder /build/mcp-synthesizer/target/release/stats_export /usr/local/bin/stats_export
 COPY --from=rust-builder /build/mcp-synthesizer/target/release/migrate /usr/local/bin/migrate
 
-# Set up Python virtual environment for Halmos
-ENV VIRTUAL_ENV=/opt/venv
-RUN python3 -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# Install uv package manager and Halmos via uv tool
+RUN curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv.sh &&  sh /tmp/uv.sh && \
+  . $HOME/.local/bin/env && \
+  uv tool install --python 3.12 halmos==0.3.3 && rm /tmp/uv.sh
 
-# Upgrade pip and install Halmos
-RUN pip install --no-cache-dir --upgrade pip setuptools==61.0 wheel==0.42.0 && \
-    pip install --no-cache-dir halmos==0.1.0
+# Ensure uv-installed tools are on PATH
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install Claude CLI
-RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh && \
+  sh /tmp/claude-install.sh && \
+  rm /tmp/claude-install.sh
 
 # Ensure Claude CLI is on PATH
 ENV PATH="/root/.claude/bin:$PATH"
 
 # Verify installations
 RUN forge --version && \
-    halmos --help && \
-    claude --version 2>/dev/null || true
+  halmos --help && \
+  claude --version 2>/dev/null || true
 
 WORKDIR /workspace
 
