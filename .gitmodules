@@ -1,0 +1,12 @@
+[submodule "hooks"]
+	path = hooks
+	url = https://github.com/BobTheBot988/claude_hooks_rs.git
+[submodule "git_diff_checker"]
+	path = git_diff_checker
+	url = https://github.com/BobTheBot988/git_diff_checker.git
+[submodule "test2"]
+	path = test2
+	url = https://github.com/BobTheBot988/test2.git
+[submodule "mcp-synthesizer"]
+	path = mcp-synthesizer
+	url = https://github.com/LucaSforza/mcp-synthesizer.git
