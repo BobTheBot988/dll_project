@@ -1,0 +1,36 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: dll-redis
+    command: ["redis-server", "--save", "300 1", "--save", "60 10"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dll-synthesis
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:?error}
+      - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:?error}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-qwen3-solidity-27B-Q6_K.gguf}
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./test2:/workspace/test2
+    stdin_open: true
+    tty: true
+
+volumes:
+  redis-data:

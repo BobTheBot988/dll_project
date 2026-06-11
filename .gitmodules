@@ -10,3 +10,6 @@
 [submodule "mcp-synthesizer"]
 	path = mcp-synthesizer
 	url = https://github.com/LucaSforza/mcp-synthesizer.git
+[submodule "deepLearningReport"]
+	path = deepLearningReport
+	url = https://github.com/LucaSforza/deepLearningReport.git
